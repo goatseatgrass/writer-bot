@@ -83,6 +83,24 @@ export const LIST_PROJECTS_COMMAND = {
   description: 'List all your projects.'
 };
 
+export const PROGRESS_REPORT_COMMAND = {
+  name: 'progressreport',
+  description: 'Get a progress report of total words written by the user',
+  type: 1,
+};
+
+export const REVIEW_COMMAND = {
+  name: 'review',
+  description: 'Give a review to another user',
+  options: [{
+    type: 6, // USER type
+    name: 'receivedusername',
+    description: 'The user to receive the review',
+    required: true,
+  }],
+};
+
+
 export const ALL_COMMANDS = [
   INVITE_COMMAND,
   UPDATE_COMMAND,
@@ -90,4 +108,6 @@ export const ALL_COMMANDS = [
   DELETE_COMMAND,
   EDIT_COMMAND,
   LIST_PROJECTS_COMMAND,
+  PROGRESS_REPORT_COMMAND,
+  REVIEW_COMMAND,
 ];

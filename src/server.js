@@ -15,8 +15,10 @@ import {
   DELETE_COMMAND,
   EDIT_COMMAND,
   LIST_PROJECTS_COMMAND,
+  PROGRESS_REPORT_COMMAND,
+  REVIEW_COMMAND,
 } from './commands.js';
-import { updateWordCount, createProject, deleteProject, editProjectName, fetchProjects } from './airtable.js';
+import { updateWordCount, createProject, deleteProject, editProjectName, fetchProjects, getProgressReport, updateReviews } from './airtable.js';
 import { InteractionResponseFlags } from 'discord-interactions';
 
 class JsonResponse extends Response {
@@ -45,6 +47,39 @@ async function assignRoleToUser(guildId, userId, roleId, token) {
 
   if (!response.ok) {
     console.error(`Failed to assign role: ${await response.text()}`);
+  }
+}
+
+function createEmbed(title, description, color) {
+  const embed = {
+    title: title,
+    description: description,
+    color: color,
+  };
+  embed.thumbnail = { url: "https://raw.githubusercontent.com/goatseatgrass/writer-bot/main/resources/RW_RE-BIRTH_1.png" };
+
+
+  return {
+    embeds: [embed],
+  };
+}
+
+async function getUsernameById(userId, token) {
+  const url = `https://discord.com/api/v10/users/${userId}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bot ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (response.ok) {
+    const userData = await response.json();
+    return userData.username;
+  } else {
+    console.error(`Failed to fetch username: ${await response.text()}`);
+    return null;
   }
 }
 
@@ -82,9 +117,9 @@ router.post('/', async (request, env) => {
     const username = interaction.member.user.username;
     const token = env.AIRTABLE_PERSONAL_ACCESS_TOKEN; 
     const userId = interaction.member.user.id;
-    const guildId = interaction.guild_id; // Get the guild ID from the interaction
-    const discordToken = env.DISCORD_TOKEN; // The bot token to manage roles
-    const newRoleId = '1255806595804303421'; // Replace with the ID of the role to assign
+    const guildId = interaction.guild_id; 
+    const discordToken = env.DISCORD_TOKEN; 
+    const newRoleId = '1255806595804303421';
 
     
     switch (interaction.data.name.toLowerCase()) {
@@ -107,21 +142,17 @@ router.post('/', async (request, env) => {
         }
         const result = await updateWordCount(username, projectname, wordcount, token);
         if (result.success) {
-          if (result.newCount > 10000) {
-            await assignRoleToUser(guildId, userId, newRoleId, discordToken);
-          }
+//          if (result.newCount > 10000) {
+//            await assignRoleToUser(guildId, userId, newRoleId, discordToken);
+//          }
           return new JsonResponse({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              content: `Word count for project "${projectname}" updated successfully. The current word count is ${result.newCount}.`,
-           },
+            data: createEmbed("Project Updated", `Word count for project "${projectname}" updated successfully. The current word count is ${result.newCount}.`, 0xFF0000),  
           });
         } else {
           return new JsonResponse({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              content: `Failed to update word count for project "${projectname}". Project not found.`,
-            },
+            data: createEmbed("Project Update Failed", `Failed to update word count for project "${projectname}". Project not found.`, 0xFF0000),  
           });
         }
       }
@@ -135,34 +166,12 @@ router.post('/', async (request, env) => {
         if (result.success) {
           return new JsonResponse({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              embeds: [{
-                title: "Project Created",
-                description: result.message,
-                color: 0x00FF00, // Green color
-                image: {
-                  url: "https://github.com/goatseatgrass/writer-bot/blob/main/resources/RW_RE-BIRTH_1.webp" // URL of the image to display
-                },
-                thumbnail: {
-                  url: "https://github.com/goatseatgrass/writer-bot/blob/main/resources/RW_RE-BIRTH_1.webp" // URL of the thumbnail image
-                },
-                footer: {
-                  text: "Created by Your Bot"
-                },
-                timestamp: new Date()
-              }],
-            },
+            data: createEmbed("Project Created", result.message, 0xFF0000),  
           });
         } else {
           return new JsonResponse({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              embeds: [{
-                title: "Creation Failed",
-                description: result.message,
-                color: 0xFF0000, // Red color
-              }],
-            },
+            data: createEmbed("Creation Failed", result.message, 0xFF0000),  
           });
         }
       }
@@ -175,16 +184,12 @@ router.post('/', async (request, env) => {
         if (success) {
           return new JsonResponse({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              content: `Project "${projectname}" deleted successfully.`,
-            },
-          });
+            data: createEmbed("Project Deleted", `Project "${projectname}" deleted successfully.`, 0xFF0000),  
+           });
         } else {
           return new JsonResponse({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              content: `Failed to delete project "${projectname}". Project not found.`,
-            },
+            data: createEmbed("Project Deletion Failed", `Failed to delete project "${projectname}". Project not found.`, 0xFF0000),  
           });
         }
       }
@@ -198,17 +203,13 @@ router.post('/', async (request, env) => {
         if (success) {
           return new JsonResponse({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              content: `Project name changed from "${oldprojectname}" to "${newprojectname}".`,
-            },
+            data: createEmbed("Project Edited", `Project name changed from "${oldprojectname}" to "${newprojectname}".`, 0xFF0000),  
           });
         } else {
           return new JsonResponse({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              content: `Failed to change project name. Project "${oldprojectname}" not found.`,
-            },
-          });
+            data: createEmbed("Project Edit Failed", `Failed to change project name. Project "${oldprojectname}" not found.`, 0xFF0000),  
+           });
         }
       }
       case LIST_PROJECTS_COMMAND.name.toLowerCase(): {
@@ -218,24 +219,56 @@ router.post('/', async (request, env) => {
           const projectList = projects.map(project => `**${project.projectName}**: ${project.wordCount} words`).join('\n');
           return new JsonResponse({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              embeds: [{
-                title: "Your Projects",
-                description: projectList,
-                color: 0x00FF00, // Green color
-              }],
-            },
+            data: createEmbed("Your Projects", projectList, 0xFF0000),  
           });
         } else {
           return new JsonResponse({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              embeds: [{
-                title: "No Projects Found",
-                description: "You have no projects.",
-                color: 0xFF0000, // Red color
-              }],
-            },
+            data: createEmbed("No Projects Found", "You have no projects.", 0xFF0000),  
+          });
+        }
+      }
+      case PROGRESS_REPORT_COMMAND.name.toLowerCase(): {
+        const report = await getProgressReport(username, token);
+
+        if (report.projects.length > 0) {
+          const reportList = report.projects.map(project => `**${project.projectName}**: ${project.wordsWritten} words written`).join('\n');
+          return new JsonResponse({
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: createEmbed("Your Progress Report", `${reportList}\n\n**Total Words Written**: ${report.totalWordsWritten}`, 0xFF0000),  
+          });
+        } else {
+          return new JsonResponse({
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: createEmbed("No Projects Found", "You have no projects.", 0xFF0000),  
+          });
+        }
+      }
+      case REVIEW_COMMAND.name.toLowerCase(): {
+        let receivedUserId;
+        for (const option of interaction.data.options) {
+          if (option.name === 'receivedusername') receivedUserId = option.value;
+        }
+
+        const receivedUsername = await getUsernameById(receivedUserId, env.DISCORD_TOKEN);
+        if (!receivedUsername) {
+          return new JsonResponse({
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: createEmbed("Review Failed", `Failed to retrieve the username for ID ${receivedUserId}.`, 0xFF0000), // Red color
+          });
+        }
+
+        const result = await updateReviews(username, receivedUsername, token);
+
+        if (result.success) {
+          return new JsonResponse({
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: createEmbed("Review Given", `You have successfully given a review to ${receivedUsername}.`, 0xFF0000),  
+          });
+        } else {
+          return new JsonResponse({
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: createEmbed("Review Failed", `Failed to give a review to ${receivedUsername}.`, 0xFF0000), // Red color
           });
         }
       }

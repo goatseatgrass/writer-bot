@@ -10,9 +10,9 @@ async function updateWordCount(username, projectname, wordcount, token) {
 
   if (records.length > 0) {
     const record = records[0];
-    const currentCount = parseInt(record.get('WordCount'), 10) || 0;
+    const currentCount = parseInt(record.get('CurrentWordCount'), 10) || 0;
     const newCount = currentCount + wordcount;
-    await table.update(record.id, { WordCount: newCount });
+    await table.update(record.id, { CurrentWordCount: newCount });
     console.log(`Word count for ${username}'s project "${projectname}" updated from ${currentCount} to ${newCount}`);
     return { success: true, newCount: newCount };
   } else {
@@ -35,7 +35,7 @@ async function createProject(username, projectname, initialwordcount, token) {
   if (projectExists) {
     return { success: false, message: `Project "${projectname}" already exists for user "${username}".` };
   } else {
-    await table.create({ Username: username, ProjectName: projectname, WordCount: initialwordcount });
+    await table.create({ Username: username, ProjectName: projectname, InitialWordCount: initialwordcount, CurrentWordCount: initialwordcount });
     return { success: true, message: `Project "${projectname}" created with an initial word count of ${initialwordcount}.` };
   }
 }
@@ -86,10 +86,73 @@ async function fetchProjects(username, token) {
 
   const projects = records.map(record => ({
     projectName: record.get('ProjectName'),
-    wordCount: record.get('WordCount')
+    wordCount: record.get('CurrentWordCount')
   }));
 
   return projects;
 }
 
-export { updateWordCount, createProject, deleteProject, editProjectName, fetchProjects };
+async function getProgressReport(username, token) {
+  const base = new Airtable({ apiKey: token }).base('appoelJu0fV5ng47u');
+  const table = base('projecttable');
+
+  const records = await table.select({
+    filterByFormula: `{Username} = '${username}'`
+  }).all();
+
+  const projects = records.map(record => ({
+    projectName: record.get('ProjectName'),
+    initialWordCount: record.get('InitialWordCount'),
+    currentWordCount: record.get('CurrentWordCount'),
+    wordsWritten: record.get('CurrentWordCount') - record.get('InitialWordCount')
+  }));
+
+  const totalWordsWritten = projects.reduce((sum, project) => sum + project.wordsWritten, 0);
+
+  return { projects, totalWordsWritten };
+}
+
+async function updateReviews(username, receivedUsername, token) {
+  const base = new Airtable({ apiKey: token }).base('appoelJu0fV5ng47u');
+  const table = base('reviewtable');
+
+  // Increment ReviewsGiven for the user
+  const userRecord = await table.select({
+    filterByFormula: `{Username} = '${username}'`
+  }).all();
+
+  if (userRecord.length > 0) {
+    const user = userRecord[0];
+    await table.update(user.id, {
+      ReviewsGiven: (user.get('ReviewsGiven') || 0) + 1,
+    });
+  } else {
+    await table.create({
+      Username: username,
+      ReviewsGiven: 1,
+      ReviewsReceived: 0,
+    });
+  }
+
+  // Increment ReviewsReceived for the receivedUsername
+  const receivedUserRecord = await table.select({
+    filterByFormula: `{Username} = '${receivedUsername}'`
+  }).all();
+
+  if (receivedUserRecord.length > 0) {
+    const receivedUser = receivedUserRecord[0];
+    await table.update(receivedUser.id, {
+      ReviewsReceived: (receivedUser.get('ReviewsReceived') || 0) + 1,
+    });
+  } else {
+    await table.create({
+      Username: receivedUsername,
+      ReviewsGiven: 0,
+      ReviewsReceived: 1,
+    });
+  }
+
+  return { success: true };
+}
+
+export { updateWordCount, createProject, deleteProject, editProjectName, fetchProjects, getProgressReport, updateReviews };

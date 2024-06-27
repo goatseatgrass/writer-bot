@@ -116,7 +116,6 @@ async function updateReviews(username, receivedUsername, token) {
   const base = new Airtable({ apiKey: token }).base('appoelJu0fV5ng47u');
   const table = base('reviewtable');
 
-  // Increment ReviewsGiven for the user
   const userRecord = await table.select({
     filterByFormula: `{Username} = '${username}'`
   }).all();
@@ -134,7 +133,6 @@ async function updateReviews(username, receivedUsername, token) {
     });
   }
 
-  // Increment ReviewsReceived for the receivedUsername
   const receivedUserRecord = await table.select({
     filterByFormula: `{Username} = '${receivedUsername}'`
   }).all();

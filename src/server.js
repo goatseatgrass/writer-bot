@@ -105,15 +105,12 @@ router.post('/', async (request, env) => {
   }
 
   if (interaction.type === InteractionType.PING) {
-    // The `PING` message is used during the initial webhook handshake, and is
-    // required to configure the webhook in the developer portal.
     return new JsonResponse({
       type: InteractionResponseType.PONG,
     });
   }
 
   if (interaction.type === InteractionType.APPLICATION_COMMAND) {
-    // Most user commands will come as `APPLICATION_COMMAND`.
     const username = interaction.member.user.username;
     const token = env.AIRTABLE_PERSONAL_ACCESS_TOKEN; 
     const userId = interaction.member.user.id;
@@ -276,7 +273,6 @@ router.post('/', async (request, env) => {
         return new JsonResponse({ error: 'Unknown Type' }, { status: 400 });
     }
   }
-
   console.error('Unknown Type');
   return new JsonResponse({ error: 'Unknown Type' }, { status: 400 });
 });

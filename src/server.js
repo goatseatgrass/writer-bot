@@ -141,10 +141,10 @@ router.post('/', async (request, env) => {
                 description: result.message,
                 color: 0x00FF00, // Green color
                 image: {
-                  url: "https://imgur.com/lFpNzZN" // URL of the image to display
+                  url: "https://github.com/goatseatgrass/writer-bot/blob/main/resources/RW_RE-BIRTH_1.webp" // URL of the image to display
                 },
                 thumbnail: {
-                  url: "https://imgur.com/1nujKuj" // URL of the thumbnail image
+                  url: "https://github.com/goatseatgrass/writer-bot/blob/main/resources/RW_RE-BIRTH_1.webp" // URL of the thumbnail image
                 },
                 footer: {
                   text: "Created by Your Bot"
